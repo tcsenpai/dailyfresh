@@ -4,6 +4,9 @@
 
 A quiz built on the [daily.dev Public API](https://docs.daily.dev/docs/plus/public-api) for the **2026 daily.dev hackathon**. Ten questions per round, drawn from a pool of ~1000 across seven question kinds — real titles, real upvotes, real comments, real publishers. No fluff, no signup.
 
+<img width="1786" height="918" alt="CleanShot 2026-05-23 at 14 40 11" src="https://github.com/user-attachments/assets/18dd1342-5c6d-4165-9092-ea643c3be258" />
+
+
 **Live:** [dailyfresh.tcsenpai.com](https://dailyfresh.tcsenpai.com)
 
 ---
