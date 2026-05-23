@@ -103,27 +103,6 @@ function kindSpecificFail(q: TrendingQuestion): string | null {
     }
   }
 
-  if (q.kind === "summaryMatch") {
-    // The summary (in postTitle slot here) literally contains the correct title.
-    const correctTitle = q.options[q.answerIndex];
-    if (!correctTitle) return "missing correct option";
-    const titleNorm = normalize(correctTitle);
-    const summaryNorm = normalize(q.postTitle);
-    if (titleNorm.length >= 12 && summaryNorm.includes(titleNorm.slice(0, 24))) {
-      return "summary contains title";
-    }
-    // ≥4 consecutive title words appear in summary
-    const tWords = titleNorm.split(" ");
-    if (tWords.length >= 4) {
-      for (let i = 0; i + 4 <= tWords.length; i++) {
-        const chunk = tWords.slice(i, i + 4).join(" ");
-        if (chunk.length >= 14 && summaryNorm.includes(chunk)) {
-          return `4-word title chunk in summary: "${chunk}"`;
-        }
-      }
-    }
-  }
-
   if (q.kind === "factTrivia") {
     // self-referential prompts
     const promptLow = q.prompt.toLowerCase();

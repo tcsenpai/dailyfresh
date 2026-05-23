@@ -25,7 +25,7 @@ export type QuestionType =
   | "tagOfPost"
   | "postAge"
   | "engagementType"
-  | "summaryMatch"
+  | "controversy"
   | "factTrivia"; // LLM-generated (see src/jobs/llm-prewarm.ts)
 
 export interface TrendingQuestion {
@@ -102,10 +102,18 @@ const ENGAGEMENT_PROMPTS = [
   "Was this a like-fest or a debate?",
 ];
 
-const SUMMARY_PROMPTS = [
-  "Which post does this summary describe?",
-  "Match the summary to its title.",
-  "Pick the post this teaser belongs to.",
+const CONTROVERSY_PROMPTS = [
+  "How heated did the comments get?",
+  "Where did this land on the controversy meter?",
+  "How much did this stir the pot?",
+  "Pick the temperature of this thread.",
+];
+
+const CONTROVERSY_BUCKETS: Array<{ label: string; minRatio: number }> = [
+  { label: "Quiet", minRatio: 0 },        // <0.03 comments/upvote
+  { label: "Normal chatter", minRatio: 0.03 },
+  { label: "Hot thread", minRatio: 0.1 },
+  { label: "On fire", minRatio: 0.25 },
 ];
 
 function pickRandom<T>(arr: readonly T[], rng: () => number): T {
@@ -278,26 +286,23 @@ function makeEngagementQ(post: CachedPost, tags: string[], rng: () => number): T
   };
 }
 
-function makeSummaryQ(
-  post: CachedPost,
-  tags: string[],
-  rng: () => number,
-  otherTitles: string[],
-): TrendingQuestion | null {
-  const s = summary(post);
-  if (!s) return null;
-  if (otherTitles.length < 3) return null;
-  const distractors = otherTitles.filter((t) => t !== post.title);
-  shuffleInPlace(distractors, rng);
-  const opts = shuffleInPlace([post.title, ...distractors.slice(0, 3)], rng);
+function makeControversyQ(post: CachedPost, tags: string[], rng: () => number): TrendingQuestion | null {
+  // Need real engagement signal to bucket — skip near-empty posts.
+  if (post.num_upvotes < 20) return null;
+  const ratio = post.num_comments / Math.max(1, post.num_upvotes);
+
+  // Pick the highest bucket the ratio meets.
+  let correct: string = CONTROVERSY_BUCKETS[0]!.label;
+  for (const b of CONTROVERSY_BUCKETS) {
+    if (ratio >= b.minRatio) correct = b.label;
+  }
+
+  const options = shuffleInPlace(CONTROVERSY_BUCKETS.map((b) => b.label).slice(), rng);
   return {
-    ...baseQ(post, tags, "summaryMatch", "sm"),
-    // For summary mode, "postTitle" becomes the summary text and the question asks
-    // user to pick the matching title from options.
-    postTitle: s,
-    prompt: pickRandom(SUMMARY_PROMPTS, rng),
-    options: opts,
-    answerIndex: opts.indexOf(post.title),
+    ...baseQ(post, tags, "controversy", "cv"),
+    prompt: pickRandom(CONTROVERSY_PROMPTS, rng),
+    options,
+    answerIndex: options.indexOf(correct),
   };
 }
 
@@ -337,7 +342,6 @@ export function buildTrendingPool(): TrendingPool {
 
   const sources = [...new Set(broad.map((p) => p.source_name))];
   const tagPool = collectTopTags(broad, 24);
-  const richTitles = rich.map((p) => p.title);
 
   const questions: TrendingQuestion[] = [];
 
@@ -348,7 +352,7 @@ export function buildTrendingPool(): TrendingPool {
     tagOfPost: 22,
     postAge: 18,
     engagementType: 18,
-    summaryMatch: 20,
+    controversy: 22,
     factTrivia: 0, // LLM-generated separately
   };
 
@@ -395,11 +399,11 @@ export function buildTrendingPool(): TrendingPool {
     if (q) questions.push(q);
   }
 
-  // summary — needs rich + other titles for distractors
-  for (const p of takeFromRich()) {
-    if (questions.filter((q) => q.kind === "summaryMatch").length >= targets.summaryMatch) break;
+  // controversy — needs decent engagement (>=20 upvotes)
+  for (const p of takeFromBroad()) {
+    if (questions.filter((q) => q.kind === "controversy").length >= targets.controversy) break;
     const tags = p.tags_csv ? p.tags_csv.split(",").filter(Boolean) : [];
-    const q = makeSummaryQ(p, tags, rng, richTitles);
+    const q = makeControversyQ(p, tags, rng);
     if (q) questions.push(q);
   }
 

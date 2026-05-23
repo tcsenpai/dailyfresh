@@ -77,9 +77,9 @@ export function homePage(): string {
       <p>Comments or upvotes — which dominated?</p>
     </div>
     <div class="how-card">
-      <span class="how-icon">🪞</span>
-      <h3>Summary &rarr; title</h3>
-      <p>Match a summary to its post.</p>
+      <span class="how-icon">🔥</span>
+      <h3>Controversy meter</h3>
+      <p>How heated did the comments get?</p>
     </div>
   </div>
 </section>
@@ -276,7 +276,7 @@ const KIND_LABELS = {
   tagOfPost: "Tag",
   postAge: "Age",
   engagementType: "Hot-take",
-  summaryMatch: "Summary",
+  controversy: "Controversy",
   factTrivia: "Trivia",
 };
 function quizApp() {

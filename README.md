@@ -19,7 +19,7 @@ A pre-warmer hits daily.dev every 6h, snapshotting top trending posts across maj
 | Pick the tag      | Identify the primary topic                          |
 | How recent        | Date bucket — this week, this month, ancient        |
 | Hot-take radar    | Comments-heavy or upvote-heavy?                     |
-| Summary → title   | Match a summary to its post                         |
+| Controversy meter | Pick the heat: quiet / normal / hot / on fire       |
 | Trivia (LLM)      | Self-hosted LLM generates trivia from post content  |
 
 All questions are pre-built and served from a local SQLite cache — no live API calls happen when you take the quiz. A quality-control pass strips questions whose answers leak from the surrounding context (e.g., title contains the source name).
