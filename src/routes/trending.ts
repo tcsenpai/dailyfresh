@@ -50,7 +50,8 @@ function stripAnswers(qs: ReturnType<typeof sampleQuestions>): PublicQuestion[] 
     postUrl: q.postUrl,
     postPermalink: q.postPermalink,
     imageUrl: q.imageUrl,
-    source: q.source,
+    // Hide source for whoseTitle Qs — would leak the answer.
+    source: q.kind === "whoseTitle" ? undefined : q.source,
     options: q.options,
   }));
 }
