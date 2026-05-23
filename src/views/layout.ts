@@ -35,7 +35,7 @@ export function layout(o: LayoutOpts): string {
 <meta name="twitter:title" content="${escape(o.title)} · daily.fresh" />
 <meta name="twitter:description" content="${escape(desc)}" />
 <meta name="twitter:image" content="${escape(ogImage)}" />
-<link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=${ASSET_VERSION}" />
 <link rel="stylesheet" href="/static/style.css?v=${ASSET_VERSION}" />
 <script src="https://unpkg.com/htmx.org@1" defer></script>
 <script defer src="https://unpkg.com/alpinejs@3/dist/cdn.min.js"></script>
