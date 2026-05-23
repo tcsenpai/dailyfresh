@@ -1356,8 +1356,8 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   bottom: 24px;
   z-index: 50;
   display: flex;
-  align-items: flex-end;
-  gap: 12px;
+  align-items: center;
+  gap: 14px;
   flex-direction: row-reverse;
   pointer-events: none;
 }
@@ -1409,19 +1409,23 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   background: var(--surface);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);
-  padding: 10px 14px;
-  max-width: 220px;
-  box-shadow: var(--shadow);
+  padding: 14px 18px;
+  min-width: 240px;
+  max-width: 320px;
+  box-shadow: var(--shadow-lg), 0 0 24px rgba(206, 61, 243, 0.15);
   position: relative;
-  font-size: 13.5px;
-  line-height: 1.4;
+  margin-bottom: 18px;
+  font-size: 15.5px;
+  line-height: 1.45;
   color: var(--text-primary);
+  font-weight: 500;
+  animation: mascot-pop 0.42s var(--ease-spring);
 }
 .mascot-bubble::after {
   content: "";
   position: absolute;
   right: -7px;
-  bottom: 20px;
+  bottom: 22px;
   width: 12px;
   height: 12px;
   background: var(--surface);
@@ -1430,6 +1434,10 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   transform: rotate(-45deg);
 }
 .mascot-bubble p { margin: 0; }
+@keyframes mascot-pop {
+  from { opacity: 0; transform: translateY(8px) scale(0.92); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
 
 /* hide on small screens */
 @media (max-width: 640px) {
