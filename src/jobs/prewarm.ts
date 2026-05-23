@@ -43,42 +43,79 @@ const HOT_TAGS = [
   "design",
 ];
 
-const POPULAR_LIMIT = 50;
-const TAG_LIMIT = 25;
-const DISCUSSED_LIMIT = 30;
+const PAGE_LIMIT = 50; // provider cap per call
+const POPULAR_PAGES_DEFAULT = 1;
+const DISCUSSED_PAGES_DEFAULT = 1;
+const TAG_PAGES_DEFAULT = 1;
 
-export async function prewarm(): Promise<{ posts: number; tags: number; duration_ms: number }> {
+interface PrewarmOpts {
+  popularPages?: number;
+  discussedPages?: number;
+  tagPages?: number;
+}
+
+async function fetchPaginated(
+  fetchPage: (cursor?: string) => Promise<{ data: any[]; pagination?: { cursor?: string | null; hasMore?: boolean } }>,
+  maxPages: number,
+  label: string,
+): Promise<number> {
+  let cursor: string | undefined;
+  let total = 0;
+  for (let i = 0; i < maxPages; i++) {
+    try {
+      const res = await fetchPage(cursor);
+      upsertPosts(res.data);
+      total += res.data.length;
+      const nextCursor = res.pagination?.cursor ?? null;
+      const hasMore = res.pagination?.hasMore ?? !!nextCursor;
+      if (!nextCursor || !hasMore || res.data.length === 0) break;
+      cursor = nextCursor;
+    } catch (err) {
+      log.warn(`prewarm ${label} page failed`, { page: i, err: String(err).slice(0, 200) });
+      break;
+    }
+  }
+  return total;
+}
+
+export async function prewarm(opts: PrewarmOpts = {}): Promise<{ posts: number; tags: number; duration_ms: number }> {
+  const popularPages = opts.popularPages ?? POPULAR_PAGES_DEFAULT;
+  const discussedPages = opts.discussedPages ?? DISCUSSED_PAGES_DEFAULT;
+  const tagPages = opts.tagPages ?? TAG_PAGES_DEFAULT;
+
   const start = Date.now();
-  log.info("prewarm start", { tags: HOT_TAGS.length });
+  log.info("prewarm start", {
+    tags: HOT_TAGS.length,
+    popularPages,
+    discussedPages,
+    tagPages,
+  });
 
   // 1. global popular
-  try {
-    const res = await dailydev.popular({ limit: POPULAR_LIMIT });
-    upsertPosts(res.data);
-    log.info("prewarm popular", { count: res.data.length });
-  } catch (err) {
-    log.error("prewarm popular failed", { err: String(err) });
-  }
+  const popularCount = await fetchPaginated(
+    (cursor) => dailydev.popular({ limit: PAGE_LIMIT, cursor }),
+    popularPages,
+    "popular",
+  );
+  log.info("prewarm popular", { count: popularCount, pages: popularPages });
 
-  // 2. discussed feed — broader engagement signal
-  try {
-    const res = await dailydev.discussed({ limit: DISCUSSED_LIMIT, period: 14 });
-    upsertPosts(res.data);
-    log.info("prewarm discussed", { count: res.data.length });
-  } catch (err) {
-    log.warn("prewarm discussed failed", { err: String(err) });
-  }
+  // 2. discussed feed — debate-heavy posts
+  const discussedCount = await fetchPaginated(
+    (cursor) => dailydev.discussed({ limit: PAGE_LIMIT, cursor, period: 14 }),
+    discussedPages,
+    "discussed",
+  );
+  log.info("prewarm discussed", { count: discussedCount, pages: discussedPages });
 
   // 3. per-tag feeds (serial, rate-limit friendly)
   let tagsOk = 0;
   for (const tag of HOT_TAGS) {
-    try {
-      const res = await dailydev.feedByTag(tag, { limit: TAG_LIMIT });
-      upsertPosts(res.data);
-      tagsOk++;
-    } catch (err) {
-      log.warn("prewarm tag failed", { tag, err: String(err) });
-    }
+    const tagCount = await fetchPaginated(
+      (cursor) => dailydev.feedByTag(tag, { limit: PAGE_LIMIT, cursor }),
+      tagPages,
+      `tag:${tag}`,
+    );
+    if (tagCount > 0) tagsOk++;
   }
 
   // 4. build templates fresh; preserve any factTrivia rows from prior pool
@@ -117,7 +154,40 @@ export async function prewarm(): Promise<{ posts: number; tags: number; duration
   return { posts, tags: tagsOk, duration_ms };
 }
 
+/**
+ * Parse CLI args:
+ *   --target=N           rough target post count; auto-derives page depth
+ *   --popular-pages=N    explicit page count for /feeds/popular (50 per page)
+ *   --discussed-pages=N  explicit page count for /feeds/discussed
+ *   --tag-pages=N        explicit page count for each tag feed
+ */
+function parsePrewarmArgs(argv: string[]): PrewarmOpts {
+  const opts: PrewarmOpts = {};
+  let target: number | undefined;
+  for (const a of argv.slice(2)) {
+    const m = a.match(/^--([a-z-]+)(?:=(.+))?$/);
+    if (!m) continue;
+    const [, key, val] = m;
+    const n = Number(val);
+    if (key === "target" && Number.isFinite(n) && n > 0) target = n;
+    else if (key === "popular-pages" && Number.isFinite(n) && n > 0) opts.popularPages = n;
+    else if (key === "discussed-pages" && Number.isFinite(n) && n > 0) opts.discussedPages = n;
+    else if (key === "tag-pages" && Number.isFinite(n) && n > 0) opts.tagPages = n;
+  }
+  if (target !== undefined && (opts.popularPages === undefined && opts.tagPages === undefined && opts.discussedPages === undefined)) {
+    // distribute the target across feeds. 50 posts per page.
+    // Bias toward tag feeds (variety) but cap popular/discussed too.
+    // formula: pages = ceil(target / (50 * (HOT_TAGS.length + 2)))
+    const pages = Math.max(1, Math.ceil(target / (50 * (HOT_TAGS.length + 2))));
+    opts.popularPages = Math.max(1, Math.ceil(pages * 1.5));
+    opts.discussedPages = Math.max(1, Math.ceil(pages * 1.2));
+    opts.tagPages = pages;
+  }
+  return opts;
+}
+
 if (import.meta.main) {
-  await prewarm();
+  const opts = parsePrewarmArgs(process.argv);
+  await prewarm(opts);
   process.exit(0);
 }
