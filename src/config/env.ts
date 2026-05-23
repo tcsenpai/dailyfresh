@@ -38,8 +38,9 @@ function hydrateFromDotenv(path: string) {
 }
 
 function loadEnv(): Env {
-  hydrateFromDotenv(resolve(import.meta.dir, "../../../.env"));
+  // src/config/env.ts → repo root (src/.. = src; src/../.. = repo root)
   hydrateFromDotenv(resolve(import.meta.dir, "../../.env"));
+  hydrateFromDotenv(resolve(import.meta.dir, "../../../.env")); // legacy nested layout
 
   const parsed = EnvSchema.safeParse(process.env);
   if (!parsed.success) {

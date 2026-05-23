@@ -131,7 +131,7 @@ interface LlmQuestion {
   answerIndex: number;
 }
 
-async function callLlm(args: CliArgs, seeds: PostSeed[]): Promise<LlmQuestion[]> {
+async function callLlmOnce(args: CliArgs, seeds: PostSeed[]): Promise<LlmQuestion[]> {
   if (!env.OPENAI_URL || !env.OPENAI_TOKEN) {
     throw new Error("OPENAI_URL or OPENAI_TOKEN missing in .env");
   }
@@ -169,8 +169,7 @@ async function callLlm(args: CliArgs, seeds: PostSeed[]): Promise<LlmQuestion[]>
   }
   const data: any = await res.json();
   let content: string = data.choices?.[0]?.message?.content ?? "";
-  // some models leak the model's hidden reasoning in `reasoning`; if `content`
-  // is empty, fall back to reasoning so JSON-leaking models still work
+  // some models put hidden reasoning in `reasoning`; fall back when content empty
   if (!content && typeof data.choices?.[0]?.message?.reasoning === "string") {
     content = data.choices[0].message.reasoning;
   }
@@ -178,14 +177,16 @@ async function callLlm(args: CliArgs, seeds: PostSeed[]): Promise<LlmQuestion[]>
   content = content.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
   // strip markdown code fences (```json ... ```)
   content = content.replace(/```(?:json)?\s*([\s\S]*?)```/gi, "$1").trim();
+  // strip any prose prefix before the first JSON array/object
+  const firstStruct = content.search(/[\[{]/);
+  if (firstStruct > 0) content = content.slice(firstStruct);
 
   // The LLM might wrap the array in {questions: [...]} or return raw [...].
-  // Try a few shapes.
   let parsed: unknown;
   try {
     parsed = JSON.parse(content);
   } catch {
-    // sometimes models leak prose around JSON; try to extract array
+    // last resort: regex-extract the largest looking array
     const m = content.match(/\[[\s\S]*\]/);
     if (m) parsed = JSON.parse(m[0]);
     else throw new Error("LLM returned non-JSON: " + content.slice(0, 200));
@@ -221,6 +222,34 @@ async function callLlm(args: CliArgs, seeds: PostSeed[]): Promise<LlmQuestion[]>
     }
   }
   return out;
+}
+
+/**
+ * Call the LLM with 2 retries on transient errors (timeout / 5xx / non-JSON parse).
+ * Exponential backoff: 1s, 3s.
+ */
+async function callLlm(args: CliArgs, seeds: PostSeed[]): Promise<LlmQuestion[]> {
+  const maxAttempts = 3;
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await callLlmOnce(args, seeds);
+    } catch (err) {
+      lastErr = err;
+      const msg = String(err);
+      const retriable =
+        msg.includes("AbortError") ||
+        msg.includes("non-JSON") ||
+        msg.includes("JSON Parse error") ||
+        /LLM 5\d\d/.test(msg) ||
+        msg.includes("ECONNRESET") ||
+        msg.includes("fetch failed");
+      if (!retriable || attempt === maxAttempts) throw err;
+      const delay = attempt === 1 ? 1000 : 3000;
+      await Bun.sleep(delay);
+    }
+  }
+  throw lastErr;
 }
 
 function llmToTrendingQuestion(q: LlmQuestion, byId: Map<string, CachedPost>): TrendingQuestion | null {

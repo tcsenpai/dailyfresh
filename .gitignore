@@ -34,8 +34,13 @@ logs/
 .DS_Store
 .idea/
 .vscode/
+.cursor/
 *.swp
 *~
+
+# --- mycelium task tracker (local-only) ---
+.mycelium/
+.mcp_data/
 
 # --- security audit reports ---
 phi-report.json
