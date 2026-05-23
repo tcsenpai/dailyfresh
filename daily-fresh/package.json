@@ -1,0 +1,30 @@
+{
+  "name": "daily-fresh",
+  "module": "src/main.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun --hot src/main.ts",
+    "start": "bun src/main.ts",
+    "migrate": "bun src/db/migrate.ts",
+    "prewarm": "bun src/jobs/prewarm.ts",
+    "llm-prewarm": "bun src/jobs/llm-prewarm.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@elysiajs/cron": "^1.4.2",
+    "@elysiajs/html": "^1.4.2",
+    "@elysiajs/static": "^1.4.10",
+    "@fontsource/inter": "^5.2.8",
+    "@resvg/resvg-js": "^2.6.2",
+    "elysia": "^1.4.28",
+    "ioredis": "^5.10.1",
+    "satori": "^0.26.0",
+    "zod": "^4.4.3"
+  }
+}

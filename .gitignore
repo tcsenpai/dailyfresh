@@ -1,0 +1,47 @@
+# --- secrets ---
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+secrets/
+
+# --- node / bun ---
+node_modules/
+*.tsbuildinfo
+.cache/
+# NOTE: bun.lock IS committed for reproducible builds — do not add it here
+
+# --- build output ---
+dist/
+out/
+build/
+*.tgz
+
+# --- runtime data (persisted by docker volume; never commit) ---
+**/data/
+**/*.db
+**/*.db-journal
+**/*.db-wal
+**/*.db-shm
+.mycelium/*.db*
+
+# --- logs ---
+logs/
+*.log
+
+# --- OS / editor ---
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+
+# --- security audit reports ---
+phi-report.json
+
+# --- agent scratch (not part of product) ---
+ui-extractor-work/
+
+# --- private session artifacts ---
+hackathon-email.pdf

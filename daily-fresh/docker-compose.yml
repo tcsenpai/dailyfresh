@@ -1,0 +1,39 @@
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "no", "--save", ""]
+    # NOT exposed to host — only the app needs it via internal network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3737
+      REDIS_URL: redis://redis:6379
+      DB_PATH: /app/data/daily-fresh.db
+      BASE_URL: ${BASE_URL:-http://localhost:3737}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      RATE_LIMIT_RPM: ${RATE_LIMIT_RPM:-50}
+    ports:
+      # bind 127.0.0.1 only — your reverse proxy terminates TLS and forwards here.
+      # Override HOST_BIND=0.0.0.0 in .env to expose directly (not recommended).
+      - "${HOST_BIND:-127.0.0.1}:${HOST_PORT:-3737}:3737"
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:3737/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
