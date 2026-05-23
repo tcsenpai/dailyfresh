@@ -9,6 +9,7 @@
  */
 
 import { layout, escape } from "./layout";
+import { mascot } from "./mascot";
 import type { TrendingQuestion } from "../modes/trending/build";
 
 function jsonScript(id: string, value: unknown): string {
@@ -102,6 +103,7 @@ fetch('/api/trending/stats').then(r => r.json()).then(s => {
   animateNum(document.getElementById('stat-sources'), s.sources || 0);
 }).catch(() => {});
 </script>
+${mascot({ context: "home" })}
 `;
   return layout({ title: "daily.fresh", children: body });
 }
@@ -122,6 +124,7 @@ export function aboutPage(): string {
   <p>Bun · Elysia · SQLite · Redis · <code>satori</code> for share cards · Docker + Caddy for self-host. Designed in the open, deployed in an evening. <a href="https://docs.daily.dev/docs/plus/public-api" target="_blank" rel="noreferrer">daily.dev Public API docs</a>.</p>
   <p style="margin-top: 32px;"><a href="/trending" class="btn btn-primary">Take the quiz &rarr;</a></p>
 </section>
+${mascot({ context: "about" })}
 `;
   return layout({ title: "About", children: body });
 }
@@ -363,6 +366,7 @@ function quizApp() {
   };
 }
 </script>
+${mascot({ context: "quiz" })}
 `;
   return layout({
     title: "Trending IQ Quiz",
@@ -441,6 +445,7 @@ export function leaderboardPage(p: LeaderboardPayload): string {
     <a class="btn btn-primary" href="/trending">Take the quiz &rarr;</a>
   </div>
 </section>
+${mascot({ context: "leaderboard" })}
 `;
   return layout({
     title: "Leaderboard",
@@ -620,6 +625,7 @@ function handleBlock(resultId, score, maxScore) {
   };
 }
 </script>
+${mascot({ context: r.percent >= 80 ? "result-high" : r.percent >= 50 ? "result-mid" : "result-low" })}
 `;
   return layout({
     title: `${r.score}/${r.maxScore} on Trending IQ`,

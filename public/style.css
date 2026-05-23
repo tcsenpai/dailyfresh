@@ -1345,6 +1345,97 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   animation: card-in 0.3s var(--ease) backwards;
 }
 
+/* ============================================================================
+ * MASCOT — Squarey
+ * Bottom-right corner. Square + rhombus interlocked, counter-rotating.
+ * Eyes blink. Speech bubble pops every 18s.
+ * ============================================================================ */
+.mascot {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-direction: row-reverse;
+  pointer-events: none;
+}
+.mascot > * { pointer-events: auto; }
+.mascot-shape {
+  background: transparent;
+  border: none;
+  padding: 6px;
+  border-radius: 50%;
+  cursor: pointer;
+  filter: drop-shadow(0 4px 16px rgba(206, 61, 243, 0.35));
+  transition: transform var(--dur-base) var(--ease-spring), filter var(--dur-base) var(--ease);
+}
+.mascot-shape:hover {
+  transform: translateY(-3px) scale(1.04);
+  filter: drop-shadow(0 6px 24px rgba(206, 61, 243, 0.55));
+}
+.mascot.silent .mascot-shape {
+  filter: grayscale(0.6) opacity(0.6);
+}
+.mascot-shape svg { display: block; }
+
+/* Counter-rotating squares */
+.mascot-shape .sq-back {
+  transform-origin: 40px 40px;
+  animation: sq-spin-cw 12s linear infinite;
+}
+.mascot-shape .sq-front {
+  transform-origin: 40px 40px;
+  animation: sq-spin-ccw 8s linear infinite;
+}
+@keyframes sq-spin-cw  { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+@keyframes sq-spin-ccw { from { transform: rotate(45deg); } to { transform: rotate(-315deg); } }
+
+/* Eyes: counter-rotate so they stay upright as parent g spins... but eyes
+ * live OUTSIDE the rotating groups so they're already upright. They blink. */
+.mascot-shape .sq-eyes circle {
+  animation: sq-blink 5.5s infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+.mascot-shape .sq-eyes circle:nth-child(2) { animation-delay: 0.04s; }
+@keyframes sq-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  94%, 97% { transform: scaleY(0.12); }
+}
+
+.mascot-bubble {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  padding: 10px 14px;
+  max-width: 220px;
+  box-shadow: var(--shadow);
+  position: relative;
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--text-primary);
+}
+.mascot-bubble::after {
+  content: "";
+  position: absolute;
+  right: -7px;
+  bottom: 20px;
+  width: 12px;
+  height: 12px;
+  background: var(--surface);
+  border-right: 1px solid var(--border-strong);
+  border-bottom: 1px solid var(--border-strong);
+  transform: rotate(-45deg);
+}
+.mascot-bubble p { margin: 0; }
+
+/* hide on small screens */
+@media (max-width: 640px) {
+  .mascot { display: none; }
+}
+
 /* reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
