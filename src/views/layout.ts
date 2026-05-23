@@ -10,6 +10,10 @@ interface LayoutOpts {
   description?: string;
   ogImage?: string;
   bodyClass?: string;
+  /** When true, hide nav links in the topbar (quiz focus) */
+  minimalTopbar?: boolean;
+  /** When true, omit the footer entirely */
+  hideFooter?: boolean;
   children: string;
 }
 
@@ -37,13 +41,13 @@ export function layout(o: LayoutOpts): string {
 <script defer src="https://unpkg.com/alpinejs@3/dist/cdn.min.js"></script>
 </head>
 <body class="${o.bodyClass ?? ""}">
-<header class="topbar">
+<header class="topbar ${o.minimalTopbar ? "topbar-minimal" : ""}">
   <a href="/" class="logo">daily.<span>fresh</span></a>
-  <nav>
+  ${o.minimalTopbar ? "" : `<nav>
     <a href="/trending">Take the quiz</a>
     <a href="/leaderboard">Leaderboard</a>
     <a href="/about">About</a>
-  </nav>
+  </nav>`}
 </header>
 <main>
 ${o.children}
@@ -69,9 +73,9 @@ ${o.children}
   });
 })();
 </script>
-<footer>
+${o.hideFooter ? "" : `<footer>
   <p>Built for the <a href="https://app.daily.dev/hackathon" rel="noreferrer">daily.dev hackathon 2026</a> · <span class="muted">data from daily.dev Public API</span></p>
-</footer>
+</footer>`}
 </body>
 </html>`;
 }

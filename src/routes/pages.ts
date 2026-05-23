@@ -30,8 +30,8 @@ export const pageRoutes = new Elysia()
   .get("/about", () => html(aboutPage()))
   .get("/leaderboard", ({ headers }) => {
     const me = decodeIdentity(parseCookie(headers["cookie"] ?? null));
-    const allTime = topByMode({ mode: "trending", limit: 25, sinceHours: null });
-    const week = topByMode({ mode: "trending", limit: 25, sinceHours: 24 * 7 });
+    const allTime = topByMode({ mode: "trending", limit: 10, sinceHours: null });
+    const week = topByMode({ mode: "trending", limit: 10, sinceHours: 24 * 7 });
     return html(leaderboardPage({ allTime, week, meUid: me?.uid ?? null }));
   })
   .get("/trending", ({ query }) => {

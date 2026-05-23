@@ -27,8 +27,8 @@ export function homePage(): string {
     <h1>How <span class="accent">fresh</span> are you on this week's dev discourse?</h1>
     <p class="lead">Ten questions about what actually trended on daily.dev. Real titles, real upvotes, real comments. No fluff.</p>
     <div class="cta-row">
-      <a href="/trending" class="btn btn-primary btn-lg">Take the quiz &rarr;</a>
-      <a href="/about" class="btn btn-ghost btn-lg">How it works</a>
+      <a href="/trending" class="btn btn-hero">Take the quiz &rarr;</a>
+      <a href="/about" class="btn btn-ghost">How it works</a>
     </div>
   </div>
   <div class="hero-meta">
@@ -135,35 +135,79 @@ interface TrendingQuizPagePayload {
 export function trendingQuizPage(p: TrendingQuizPagePayload): string {
   const body = `
 ${jsonScript("trending-questions", p.questions)}
-<section x-data="quizApp()" x-init="init()" class="quiz-shell">
+<section x-data="quizApp()" x-init="init()" class="quiz-shell" :class="{ 'is-calculating': calculating }">
 
-  <!-- typewriter intro -->
-  <template x-if="!ready">
+  <!-- short typewriter intro -->
+  <template x-if="phase === 'intro'">
     <div class="quiz-intro">
       <p class="typewriter" x-text="introText"></p>
     </div>
   </template>
 
-  <div class="quiz-header" x-show="ready" x-transition.opacity.duration.500ms>
-    <div>
-      <span class="kicker">trending iq · this week</span>
-      <h1>QUIZ</h1>
+  <!-- TOP HUD: sticky bar w/ Q counter + progress dots + mode toggle -->
+  <div class="quiz-hud" x-show="phase === 'quiz'" x-transition.opacity.duration.300ms>
+    <div class="hud-counter tnum">
+      <span class="hud-num" x-text="(currentIdx + 1).toString().padStart(2, '0')"></span>
+      <span class="hud-slash">/</span>
+      <span class="hud-total tnum" x-text="questions.length.toString().padStart(2, '0')"></span>
     </div>
-    <div class="mode-toggle">
-      <button :class="{active: mode === 'list'}" @click="mode='list'" type="button">List</button>
-      <button :class="{active: mode === 'focus'}" @click="mode='focus'" type="button">Focus</button>
-    </div>
-  </div>
-
-  <div class="progress" x-show="ready" x-transition.opacity.duration.500ms>
-    <div class="progress-bar" :style="'width:' + (Object.keys(answers).length / questions.length * 100) + '%'"></div>
-  </div>
-
-  <!-- LIST MODE -->
-  <template x-if="mode === 'list' && ready">
-    <div style="display:flex;flex-direction:column;gap:14px;">
+    <div class="hud-dots" role="progressbar" :aria-valuenow="Object.keys(answers).length" :aria-valuemax="questions.length">
       <template x-for="(q, i) in questions" :key="q.id">
-        <div class="qcard" :class="{answered: answers[q.id] !== undefined}" :style="'animation-delay:' + (i * 60) + 'ms;'">
+        <button type="button" class="hud-dot"
+          :class="{ done: answers[q.id] !== undefined, here: i === currentIdx }"
+          @click="jumpTo(i)"
+          :aria-label="'Question ' + (i+1)"></button>
+      </template>
+    </div>
+    <div class="hud-mode">
+      <button type="button" :class="{ active: mode === 'focus' }" @click="mode='focus'" aria-label="Focus mode">●</button>
+      <button type="button" :class="{ active: mode === 'list' }" @click="mode='list'" aria-label="List mode">≡</button>
+    </div>
+  </div>
+
+  <!-- FOCUS MODE (default) — one question, centered, full attention -->
+  <template x-if="phase === 'quiz' && mode === 'focus'">
+    <div class="focus-shell">
+      <div class="qcard focus" :key="currentIdx" :class="{ 'flash': flashIdx === currentIdx }">
+        <div class="qcard-head">
+          <span class="qkind" x-text="kindLabel(currentQ().kind)"></span>
+        </div>
+        <h2 class="qprompt-big" x-text="currentQ().prompt"></h2>
+        <div class="postref large" x-show="currentQ().postTitle">
+          <template x-if="currentQ().imageUrl">
+            <img :src="currentQ().imageUrl" :alt="currentQ().postTitle" loading="lazy" class="postref-img large" onerror="this.style.display='none'" />
+          </template>
+          <div class="postref-body">
+            <div class="postref-title large" x-text="currentQ().postTitle"></div>
+            <div class="postref-meta" x-show="currentQ().source"><span x-text="currentQ().source"></span></div>
+          </div>
+        </div>
+        <div class="opts focus">
+          <template x-for="(opt, idx) in currentQ().options" :key="idx">
+            <button type="button" class="opt large"
+              :class="{ selected: answers[currentQ().id] === idx }"
+              @click="pick(idx)"
+              x-text="opt"></button>
+          </template>
+        </div>
+        <div class="focus-nav">
+          <button class="btn btn-ghost" type="button" @click="prevQ()" :disabled="currentIdx === 0">&larr; Prev</button>
+          <button class="btn btn-primary" type="button"
+            x-show="currentIdx === questions.length - 1 && Object.keys(answers).length === questions.length"
+            @click="submit()">Finish &rarr;</button>
+          <button class="btn btn-ghost" type="button"
+            x-show="!(currentIdx === questions.length - 1 && Object.keys(answers).length === questions.length)"
+            @click="nextQ()" :disabled="currentIdx === questions.length - 1">Next &rarr;</button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- LIST MODE (power users) — all 10 stacked -->
+  <template x-if="phase === 'quiz' && mode === 'list'">
+    <div class="list-shell">
+      <template x-for="(q, i) in questions" :key="q.id">
+        <div class="qcard" :class="{ answered: answers[q.id] !== undefined }" :style="'animation-delay:' + (i * 40) + 'ms;'">
           <div class="qcard-head">
             <span class="qnum" x-text="'Q' + (i+1).toString().padStart(2, '0')"></span>
             <span class="qkind" x-text="kindLabel(q.kind)"></span>
@@ -181,60 +225,45 @@ ${jsonScript("trending-questions", p.questions)}
           <div class="opts">
             <template x-for="(opt, idx) in q.options" :key="idx">
               <button type="button" class="opt"
-                :class="{selected: answers[q.id] === idx}"
+                :class="{ selected: answers[q.id] === idx }"
                 @click="answers[q.id] = idx"
                 x-text="opt"></button>
             </template>
           </div>
         </div>
       </template>
+      <div class="list-submit">
+        <button class="btn btn-primary" @click="submit()"
+          :disabled="submitting || Object.keys(answers).length < questions.length">
+          <span x-show="!submitting">Submit (<span x-text="Object.keys(answers).length"></span>/<span x-text="questions.length"></span>)</span>
+          <span x-show="submitting">Scoring&hellip;</span>
+        </button>
+      </div>
     </div>
   </template>
 
-  <!-- FOCUS MODE -->
-  <template x-if="mode === 'focus' && ready">
-    <div class="focus-shell">
-      <template x-if="questions.length > 0">
-        <div class="qcard focus">
-          <div class="qcard-head">
-            <span class="qnum" x-text="'Q' + (currentIdx+1).toString().padStart(2,'0') + ' / ' + questions.length.toString().padStart(2,'0')"></span>
-            <span class="qkind" x-text="kindLabel(currentQ().kind)"></span>
-          </div>
-          <h2 class="qprompt-big" x-text="currentQ().prompt"></h2>
-          <div class="postref large">
-            <template x-if="currentQ().imageUrl">
-              <img :src="currentQ().imageUrl" :alt="currentQ().postTitle" loading="lazy" class="postref-img large" onerror="this.style.display='none'" />
-            </template>
-            <div class="postref-body">
-              <div class="postref-title large" x-text="currentQ().postTitle"></div>
-              <div class="postref-meta" x-show="currentQ().source"><span x-text="currentQ().source"></span></div>
-            </div>
-          </div>
-          <div class="opts focus">
-            <template x-for="(opt, idx) in currentQ().options" :key="idx">
-              <button type="button" class="opt large"
-                :class="{selected: answers[currentQ().id] === idx}"
-                @click="answers[currentQ().id] = idx; setTimeout(() => nextQ(), 220)"
-                x-text="opt"></button>
-            </template>
-          </div>
-          <div class="focus-nav">
-            <button class="btn btn-ghost" type="button" @click="prevQ()" :disabled="currentIdx === 0">&larr; Prev</button>
-            <button class="btn btn-ghost" type="button" @click="nextQ()" :disabled="currentIdx === questions.length - 1">Next &rarr;</button>
-          </div>
-        </div>
-      </template>
+  <!-- CALCULATING screen — between submit + redirect -->
+  <template x-if="phase === 'calculating'">
+    <div class="calc-screen">
+      <svg class="calc-meter" viewBox="0 0 120 120" width="120" height="120" aria-hidden="true">
+        <circle cx="60" cy="60" r="48" fill="none" stroke="rgba(168,179,207,0.12)" stroke-width="6"/>
+        <circle cx="60" cy="60" r="48" fill="none" stroke="url(#calcGrad)" stroke-width="6"
+                stroke-linecap="round" stroke-dasharray="80 220" transform="rotate(-90 60 60)">
+          <animateTransform attributeName="transform" type="rotate" from="-90 60 60" to="270 60 60" dur="1.4s" repeatCount="indefinite"/>
+        </circle>
+        <defs>
+          <linearGradient id="calcGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#ffe923"/>
+            <stop offset="50%" stop-color="#ff8e3b"/>
+            <stop offset="100%" stop-color="#fc538d"/>
+          </linearGradient>
+        </defs>
+      </svg>
+      <p class="calc-text">Calculating freshness<span class="calc-dots">&hellip;</span></p>
     </div>
   </template>
 
-  <div class="quiz-foot" x-show="ready" x-transition.opacity.delay.300ms>
-    <button class="btn btn-primary btn-lg" @click="submit()"
-      :disabled="submitting || Object.keys(answers).length < questions.length">
-      <span x-show="!submitting">Submit (<span x-text="Object.keys(answers).length"></span>/<span x-text="questions.length"></span>)</span>
-      <span x-show="submitting">Scoring&hellip;</span>
-    </button>
-    <p class="muted" x-show="errorMsg" x-text="errorMsg" style="font-size:13px;"></p>
-  </div>
+  <p class="muted quiz-error" x-show="errorMsg" x-text="errorMsg"></p>
 </section>
 
 <script>
@@ -252,58 +281,83 @@ function quizApp() {
     questions: [],
     answers: {},
     submitting: false,
+    calculating: false,
     errorMsg: "",
-    mode: "list",
+    mode: "focus",
     currentIdx: 0,
-    ready: false,
+    flashIdx: -1,
+    phase: "intro", // "intro" | "quiz" | "calculating"
     introText: "",
     init() {
       const node = document.getElementById("trending-questions");
       this.questions = JSON.parse(node.textContent);
       this.runIntro();
-    },
-    runIntro() {
-      const phrases = ["> daily.dev → daily.fresh_", "> 10 questions ready_"];
-      let pIdx = 0;
-      let cIdx = 0;
-      const step = () => {
-        const phrase = phrases[pIdx];
-        if (!phrase) {
-          setTimeout(() => { this.ready = true; }, 240);
+      // global keyboard nav
+      document.addEventListener("keydown", (e) => {
+        if (this.phase === "intro" && (e.key === "Enter" || e.key === " " || e.key === "Escape")) {
+          this.phase = "quiz";
           return;
         }
-        if (cIdx <= phrase.length) {
-          this.introText = phrase.slice(0, cIdx);
-          cIdx++;
-          setTimeout(step, 14);
+        if (this.phase !== "quiz") return;
+        if (e.key === "ArrowRight" || e.key === "j") this.nextQ();
+        else if (e.key === "ArrowLeft" || e.key === "k") this.prevQ();
+        else if (e.key === "l") this.mode = this.mode === "focus" ? "list" : "focus";
+        else if (e.key >= "1" && e.key <= "4" && this.mode === "focus") {
+          const idx = parseInt(e.key, 10) - 1;
+          if (this.currentQ().options && idx < this.currentQ().options.length) this.pick(idx);
+        }
+      });
+    },
+    runIntro() {
+      const phrase = "> daily.dev → daily.fresh_";
+      let i = 0;
+      const tick = () => {
+        if (this.phase !== "intro") return;
+        if (i <= phrase.length) {
+          this.introText = phrase.slice(0, i);
+          i++;
+          setTimeout(tick, 18);
         } else {
-          pIdx++;
-          cIdx = 0;
-          setTimeout(step, 180);
+          setTimeout(() => { if (this.phase === "intro") this.phase = "quiz"; }, 520);
         }
       };
-      step();
+      tick();
     },
     kindLabel(k) { return KIND_LABELS[k] || k; },
     currentQ() { return this.questions[this.currentIdx] || {}; },
     nextQ() { if (this.currentIdx < this.questions.length - 1) this.currentIdx++; },
     prevQ() { if (this.currentIdx > 0) this.currentIdx--; },
+    jumpTo(i) { if (i >= 0 && i < this.questions.length) this.currentIdx = i; },
+    pick(idx) {
+      this.answers[this.currentQ().id] = idx;
+      this.flashIdx = this.currentIdx;
+      setTimeout(() => { this.flashIdx = -1; }, 180);
+      // auto-advance unless last question
+      if (this.currentIdx < this.questions.length - 1) {
+        setTimeout(() => this.nextQ(), 220);
+      }
+    },
     async submit() {
+      if (Object.keys(this.answers).length < this.questions.length) return;
       this.submitting = true;
       this.errorMsg = "";
+      this.phase = "calculating";
+      const minDelay = new Promise((res) => setTimeout(res, 1400));
       try {
         const payload = { answers: Object.entries(this.answers).map(([id, choice]) => ({ id, choice })) };
-        const res = await fetch("/api/trending/submit", {
+        const fetchPromise = fetch("/api/trending/submit", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
+        const [res] = await Promise.all([fetchPromise, minDelay]);
         if (!res.ok) throw new Error("HTTP " + res.status);
         const data = await res.json();
         window.location.href = "/r/" + data.id;
       } catch (err) {
         this.errorMsg = "Submit failed: " + String(err);
         this.submitting = false;
+        this.phase = "quiz";
       }
     },
   };
@@ -313,6 +367,8 @@ function quizApp() {
   return layout({
     title: "Trending IQ Quiz",
     description: "Ten questions about this week's top daily.dev posts.",
+    minimalTopbar: true,
+    hideFooter: true,
     children: body,
   });
 }
@@ -345,10 +401,9 @@ function leaderboardTable(rows: LeaderboardRow[], meUid: string | null): string 
     .map((r) => {
       const mine = !!(meUid && r.uid && meUid === r.uid);
       const dateStr = r.createdAt.slice(0, 16).replace("T", " ");
-      const medal = r.rank === 1 ? "🥇" : r.rank === 2 ? "🥈" : r.rank === 3 ? "🥉" : "";
       return `
-    <div class="lb-row ${mine ? "mine" : ""}">
-      <div class="lb-rank tnum">${medal || "#" + r.rank}</div>
+    <div class="lb-row ${mine ? "mine" : ""} ${r.rank <= 3 ? "rank-" + r.rank : ""}">
+      <div class="lb-rank tnum">#${r.rank}</div>
       <div class="lb-handle">
         <div class="lb-name">${escape(r.handle)}${mine ? '<span class="lb-you">YOU</span>' : ""}</div>
         <div class="lb-when muted">${escape(dateStr)} UTC${r.resultId ? ` &middot; <a href="/r/${escape(r.resultId)}">view</a>` : ""}</div>
@@ -390,6 +445,7 @@ export function leaderboardPage(p: LeaderboardPayload): string {
   return layout({
     title: "Leaderboard",
     description: "Top scores on this week's daily.fresh Trending IQ",
+    hideFooter: true,
     children: body,
   });
 }
@@ -420,25 +476,18 @@ export function resultPage(r: ResultPayload): string {
     <div class="result-pct">${r.percent}% CORRECT</div>
     <div class="result-verdict">${escape(verdict)}</div>
 
-    <div class="share-row">
-      <a target="_blank" rel="noreferrer" class="btn btn-primary" href="https://twitter.com/intent/tweet?text=${encodeURIComponent(tweet)}">Share on X</a>
-      <a target="_blank" rel="noreferrer" class="btn btn-ghost" href="https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(r.shareUrl)}">LinkedIn</a>
-      <a class="btn btn-ghost" href="/trending">Try again</a>
-    </div>
-
     <div class="handle-block" x-data="handleBlock('${escape(r.id)}', ${r.score}, ${r.maxScore})" x-init="init()">
       <template x-if="loading">
-        <p class="muted" style="font-size:13px;margin-top:18px;">&hellip;</p>
+        <p class="muted handle-loading">&hellip;</p>
       </template>
       <template x-if="!loading && handle">
-        <div style="margin-top:22px;">
-          <p class="muted" style="font-size:13px;margin:0 0 6px;">Saved as <strong x-text="handle" style="color:var(--cabbage);"></strong></p>
-          <div class="share-row" style="margin-top:6px;">
-            <a class="btn btn-ghost" href="/leaderboard">View leaderboard &rarr;</a>
-            <button class="btn btn-ghost" type="button" @click="editing = true" x-show="canRename && !editing">Rename (one-time)</button>
-            <span class="muted" x-show="!canRename" style="font-size:12px;align-self:center;">Handle locked — rename used.</span>
-          </div>
-          <div x-show="editing" style="margin-top:14px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+        <div class="handle-saved">
+          <p class="muted handle-saved-line">
+            Saved as <strong x-text="handle" class="handle-name"></strong>
+            <button type="button" class="handle-rename-link" @click="editing = true" x-show="canRename && !editing">rename (one-shot)</button>
+            <span x-show="!canRename" class="muted handle-locked">handle locked</span>
+          </p>
+          <div x-show="editing" class="handle-edit">
             <input class="handle-input" x-model="newHandle" placeholder="new handle (last chance)" maxlength="24" />
             <button class="btn btn-primary" type="button" @click="rename()" :disabled="!newHandle || saving">
               <span x-show="!saving">Save (final)</span><span x-show="saving">&hellip;</span>
@@ -448,9 +497,9 @@ export function resultPage(r: ResultPayload): string {
         </div>
       </template>
       <template x-if="!loading && !handle">
-        <div style="margin-top:22px;">
-          <p class="kicker" style="display:inline-flex;margin:0 0 12px;">Land on leaderboard</p>
-          <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+        <div class="handle-claim">
+          <p class="kicker handle-cta">Land on leaderboard</p>
+          <div class="handle-row">
             <input class="handle-input" x-model="newHandle" placeholder="pick a nickname" maxlength="24" @keydown.enter="claim()" />
             <button class="btn btn-primary" type="button" @click="claim()" :disabled="!newHandle || saving">
               <span x-show="!saving && !claimed">Save score</span>
@@ -458,14 +507,24 @@ export function resultPage(r: ResultPayload): string {
               <span x-show="claimed">Saved &check;</span>
             </button>
           </div>
-          <p class="muted" style="font-size:12px;margin-top:8px;">Stored in a cookie. No signup, no email.</p>
+          <p class="muted handle-hint">Stored in a cookie. No signup, no email.</p>
         </div>
       </template>
     </div>
+
+    <div class="share-row">
+      <a target="_blank" rel="noreferrer" class="btn btn-primary" href="https://twitter.com/intent/tweet?text=${encodeURIComponent(tweet)}">Share on X</a>
+      <a target="_blank" rel="noreferrer" class="btn btn-ghost" href="https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(r.shareUrl)}">LinkedIn</a>
+      <a class="btn btn-ghost" href="/leaderboard">Leaderboard</a>
+      <a class="btn btn-ghost" href="/trending">Try again</a>
+    </div>
   </div>
 
-  <div>
-    <h2 class="section-h">Breakdown</h2>
+  <details class="breakdown-details">
+    <summary>
+      <span class="bd-summary-label">Review your answers</span>
+      <span class="bd-summary-count tnum">${r.breakdown.length}</span>
+    </summary>
     <div class="breakdown">
       ${r.breakdown
         .map(
@@ -481,7 +540,7 @@ export function resultPage(r: ResultPayload): string {
         )
         .join("")}
     </div>
-  </div>
+  </details>
 </section>
 
 ${celebrate ? confettiScript() : ""}
@@ -566,6 +625,7 @@ function handleBlock(resultId, score, maxScore) {
     title: `${r.score}/${r.maxScore} on Trending IQ`,
     description: `Scored ${r.percent}% on daily.fresh Trending IQ. ${verdict}.`,
     ogImage: r.ogImage,
+    hideFooter: true,
     children: body,
   });
 }
